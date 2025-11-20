@@ -1,6 +1,7 @@
 # draughts
 
-Using Python 3.12 and pygame 2.6.1
+Using Python 3.12 and pygame 2.6.1. 
+Run main.py to start app.
 
 Work In Progress!
 - Currently can make diagonal moves.
