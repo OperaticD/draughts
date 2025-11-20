@@ -1,9 +1,8 @@
 # Assume white pieces start in the bottom half, and black in the top. 
 # Top right corner is (0,0) - (i,j) is row i, column j
-# Assume white is user and black is computer.
+# Will assume that white is user and black is computer.
 
 import logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +24,10 @@ def setup_board():
     for piece, pos in zip(white_pieces, white_start_positions):
         BOARD[pos] = piece
 
-    
-class BlackPiece:
+
+class Piece:
     king_status: bool = False
-    colour = "black"
-    active = True # is the piece on the board
-    # position: tuple
+    active: bool = True
 
     def check_valid_position(self, position: tuple[int, int]) -> bool:
         # square must be within the board and empty
@@ -51,6 +48,10 @@ class BlackPiece:
 
         return True
 
+    
+class BlackPiece(Piece):
+    colour = "black"
+    # store position?
 
     def move_right(self, position: tuple[int, int]) -> tuple[str, int]:
         new_position = (position[0] + 1, position[1] + 1)
@@ -89,31 +90,8 @@ class BlackPiece:
         pass
 
 
-class WhitePiece:
-    king_status: bool = False
+class WhitePiece(Piece):
     colour = "white"
-    active = True # is the piece on the board
-    # position: tuple
-
-    def check_valid_position(self, position: tuple[int, int]) -> bool:
-        # square must be within the board and empty
-        if position[0] > 7 or position[0] < 0 or position[1] > 7 or position[1] < 0:
-            logger.error("Invalid position")
-            return False
-        else:
-            return True
-
-    def can_move_single(self, new_position: tuple[int, int]) -> bool:
-        # check if piece can move diagonally right or left
-        if not self.check_valid_position(new_position):
-            return False
-
-        if BOARD[new_position]:
-            logger.error("Square is occupied")
-            return False
-
-        return True
-
 
     def move_right(self, position: tuple[int, int]) -> tuple[str, int]:
         new_position = (position[0] - 1, position[1] + 1)
