@@ -6,7 +6,7 @@ Work In Progress!
 - Currently can make diagonal moves.
 - Next: Code clean up and double moves logic.
 
-Rules:
+<br><br>
 
 Setup:
 - Eight by eight board, with chequered squares. Dark square on bottom left corner.
