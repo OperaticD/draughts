@@ -14,9 +14,9 @@ Setup:
 - On the nearest twelve dark squares from each of the two opposite ends, twelve checkers are placed: white at one end, black at the other.
 
 Player wins if 
-A) all of the opponent's pieces have been removed from the board.
-or
-B) the opponent cannot make any legal moves.
+A) all of the opponent's pieces have been removed from the board. <br>
+or <br>
+B) the opponent cannot make any legal moves. <br>
 
 
 Gameplay:
