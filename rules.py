@@ -6,23 +6,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-BOARD = {(r, c): None for r in range(8) for c in range(8)}
 
-def setup_board():
-    black_pieces = [BlackPiece() for _ in range(12)]
-    black_start_positions = [
-        (0,1), (0,3), (0,5), (0,7), (1,0), (1,2), (1,4), (1,6), (2,1), (2,3), (2,5), (2,7)
-        ]
-    white_pieces = [WhitePiece() for _ in range(12)]
-    white_start_positions = [
-        (7,0), (7,2), (7,4), (7,6), (6,1), (6,3), (6,5), (6,7), (5,0), (5,2), (5,4), (5,6)
-        ]
-
-    for piece, pos in zip(black_pieces, black_start_positions):
-        BOARD[pos] = piece
-    
-    for piece, pos in zip(white_pieces, white_start_positions):
-        BOARD[pos] = piece
+def captured_position(position: tuple[int, int], new_position: tuple[int, int]) -> tuple[int, int]:
+    dr = new_position[0] - position[0]
+    dc = new_position[1] - position[1]
+    captured_pos_r = position[0] + dr/2
+    captured_pos_c = position[1] + dc/2
+    return (captured_pos_r, captured_pos_c)
 
 
 class Piece:
@@ -37,7 +27,7 @@ class Piece:
         else:
             return True
 
-    def can_move_single(self, new_position: tuple[int, int]) -> bool:
+    def is_square_free(self, new_position: tuple[int, int]) -> bool:
         # check if piece can move diagonally right or left
         if not self.check_valid_position(new_position):
             return False
@@ -47,72 +37,149 @@ class Piece:
             return False
 
         return True
-
     
+    def can_move_double(self, new_position: tuple[int, int], captured_position: tuple[int, int]) -> bool:
+        if not self.is_square_free(new_position):
+            return False
+        
+        captured_piece = BOARD[captured_position]
+        if captured_piece:
+            if captured_piece.colour != self.colour:
+                return True
+        else:
+            logger.error("Cannot take your own piece.")
+            return False
+
+
 class BlackPiece(Piece):
     colour = "black"
-    # store position?
+    # TODO: Check how double moves continue if can_move_double again.
 
-    def move_right(self, position: tuple[int, int]) -> tuple[str, int]:
-        new_position = (position[0] + 1, position[1] + 1)
-        if self.can_move_single(new_position):
-            # if valid, trigger board move
-            BOARD[position] = None
-            BOARD[new_position] = self
-        return f"Black moved {'king' if self.king_status else 'piece'} to {new_position}.", 200
+    def move(self, position: tuple[int, int], new_position: tuple[int,int]) -> tuple[str, int]:
+        BOARD[position] = None
+        BOARD[new_position] = self
+        logger.info(f"Black moved {'king' if self.king_status else 'piece'} at {position} to {new_position}.")
+        if new_position[0] == 7:
+            self.king_status = True
 
+    def move_single(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
+        dr = new_position[0] - position[0]
+        # allowed if moving forward, or piece is a king
+        can_move = self.is_square_free(new_position) and (dr == 1 or self.king_status)
+        if can_move:
+            self.move(position, new_position)
 
-    def move_left(self, position: tuple[int, int]) -> tuple[str, int]:
-        new_position = (position[0] + 1, position[1] - 1)
-        if self.can_move_single(new_position):
-            # if valid, trigger board move
-            BOARD[position] = None
-            BOARD[new_position] = self
-        return f"Black moved {'king' if self.king_status else 'piece'} to {new_position}.", 200
-
-
-    def can_move_double_right(self):
-        # check valid new position
-        # check +(1,1) is occupied by white,
-        # check one of following is true
-            # +(3,3) is empty, or
-            # +(3,3) is occupied by black, or
-            # +(3,3) is edge of board, or
-            # +(3,3) and +(4,4) are occupied
-            # *** OR call can_move_quadruple. If this is true, then return false ***
-
-        pass
-
-    def can_move_quadruple_right(self):
-        pass
+        return 200
     
-    def can_move_sextuple_right(self):
-        pass
+
+    def move_double(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
+        dr = new_position[0] - position[0]
+        captured_pos = captured_position(position, new_position)
+        can_move = self.can_move_double(new_position, captured_pos) and (dr == 2 or self.king_status)
+
+        if can_move:
+            if self.can_move_double(new_position, captured_pos):
+                # if valid, trigger board move
+                captured_piece = BOARD[captured_pos]
+                captured_piece.active = False
+                BOARD[captured_pos] = None
+                self.move(position, new_position)
+
+        return 200
+
+    def can_take(self):
+        # find current position
+        position = next((k for k, v in BOARD.items() if v == self), None)
+        if position:
+            r, c = position
+            # direction pairs for standard movement
+            directions = [(2, -2), (2, 2)]
+            if self.king_status:
+                directions += [(-2, -2), (-2, 2)]
+
+            for dr, dc in directions:
+                new_pos = (r + dr, c + dc)
+                captured = captured_position(position, new_pos)
+
+                if self.can_move_double(new_pos, captured):
+                    return True
+
+        return False
 
 
 class WhitePiece(Piece):
     colour = "white"
 
-    def move_right(self, position: tuple[int, int]) -> tuple[str, int]:
-        new_position = (position[0] - 1, position[1] + 1)
-        if self.can_move_single(new_position):
-            # if valid, trigger board move
-            BOARD[position] = None
-            BOARD[new_position] = self
-        return f"White moved {'king' if self.king_status else 'piece'} to {new_position}.", 200
+    def move(self, position: tuple[int, int], new_position: tuple[int,int]) -> tuple[str, int]:
+        BOARD[position] = None
+        BOARD[new_position] = self
+        logger.info(f"White moved {'king' if self.king_status else 'piece'} at {position} to {new_position}.")
+        if new_position[0] == 0:
+            self.king_status = True
+
+    def move_single(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
+        dr = new_position[0] - position[0]
+        # allowed if moving forward, or piece is a king
+        can_move = self.is_square_free(new_position) and (dr == -1 or self.king_status)
+        if can_move:
+            self.move(position, new_position)
+
+        return 200
+
+    def move_double(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
+        dr = new_position[0] - position[0]
+        captured_pos = captured_position(position, new_position)
+        can_move = self.can_move_double(new_position, captured_pos) and (dr == -2 or self.king_status)
+
+        if can_move:
+            if self.can_move_double(new_position, captured_pos):
+                # if valid, trigger board move
+                captured_piece = BOARD[captured_pos]
+                captured_piece.active = False
+                BOARD[captured_pos] = None
+                self.move(position, new_position)
+
+        return 200
+    
+    def can_take(self):
+        # find current position
+        position = next((k for k, v in BOARD.items() if v == self), None)
+        if position:
+            r, c = position
+            # direction pairs for standard movement
+            directions = [(-2, -2), (-2, 2)]
+            if self.king_status:
+                directions += [(2, -2), (2, 2)]
+
+            for dr, dc in directions:
+                new_pos = (r + dr, c + dc)
+                captured = captured_position(position, new_pos)
+
+                if self.can_move_double(new_pos, captured):
+                    return True
+
+        return False
 
 
-    def move_left(self, position: tuple[int, int]) -> tuple[str, int]:
-        new_position = (position[0] - 1, position[1] - 1)
-        if self.can_move_single(new_position):
-            # if valid, trigger board move
-            BOARD[position] = None
-            BOARD[new_position] = self
-        return f"White moved {'king' if self.king_status else 'piece'} to {new_position}.", 200
+BOARD = {(r, c): None for r in range(8) for c in range(8)}
+black_pieces = [BlackPiece() for _ in range(12)]
+white_pieces = [WhitePiece() for _ in range(12)]
+all_pieces = black_pieces + white_pieces
 
 
+def setup_board():
+    black_start_positions = [
+        (0,1), (0,3), (0,5), (0,7), (1,0), (1,2), (1,4), (1,6), (2,1), (2,3), (2,5), (2,7)
+        ]
+    white_start_positions = [
+        (7,0), (7,2), (7,4), (7,6), (6,1), (6,3), (6,5), (6,7), (5,0), (5,2), (5,4), (5,6)
+        ]
 
-
+    for piece, pos in zip(black_pieces, black_start_positions):
+        BOARD[pos] = piece
+    
+    for piece, pos in zip(white_pieces, white_start_positions):
+        BOARD[pos] = piece
 
 
 # board contains layout of all pieces - grid of piece objects
