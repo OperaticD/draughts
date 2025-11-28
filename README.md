@@ -1,11 +1,11 @@
-# draughts
+# Draughts
 
 Using Python 3.12 and pygame 2.6.1. 
 Run main.py to start app.
 
 Work In Progress!
-- Currently can make diagonal moves.
-- Next: Code clean up and double moves logic.
+- Currently pieces can make diagonal single and double moves, take pieces and become king.
+- Next: Implement "turns" logic and iterate through validity checks so that computer can make a move. Later add logic for computer's move.
 
 <br><br>
 

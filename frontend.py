@@ -1,5 +1,8 @@
 import pygame
-from rules import BOARD
+from rules import BOARD, all_pieces
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Pygame display settings
 WIDTH, HEIGHT = 640, 640
@@ -43,7 +46,7 @@ def draw_pieces(win):
             pygame.draw.circle(win, (200, 200, 0), (x, y), radius - 5, 3)
 
 
-def pygame_loop():
+def game():
     pygame.init()
     win = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Draughts Frontend")
@@ -72,33 +75,57 @@ def pygame_loop():
 
                 # 2) Second click attempts to move it
                 else:
-                    new_pos = (row, col)
-
-                    # Example: try diagonal moves
-                    dr = new_pos[0] - selected_pos[0]
-                    dc = new_pos[1] - selected_pos[1]
-
-                    if dr == 1 and dc == 1:
-                        if selected_piece.colour == 'black':
-                            selected_piece.move_right(selected_pos)
-                        # elif selected_piece.colour == 'white':
-                        #   selected_piece.move_back_right(selected_pos)
-
-                    elif dr == 1 and dc == -1:
-                        if selected_piece.colour == 'black':
-                            selected_piece.move_left(selected_pos)
-
-                    elif dr == -1 and dc == 1:
-                        if selected_piece.colour == 'white':
-                            selected_piece.move_right(selected_pos)
+                    # Check if any pieces can be taken
+                    my_pieces = [p for p in all_pieces if p.colour == selected_piece.colour]
+                    allowed_pieces = [p for p in my_pieces if p.can_take()]
+                    if allowed_pieces:
+                        must_take = True
+                    else:
+                        allowed_pieces = my_pieces
+                        must_take = False
                     
-                    elif dr == -1 and dc == -1:
-                        if selected_piece.colour == 'white':
-                            selected_piece.move_left(selected_pos)
+                    if selected_piece in allowed_pieces:
+                        new_pos = (row, col)
+
+                        # calculate movement
+                        dr = new_pos[0] - selected_pos[0]
+                        dc = new_pos[1] - selected_pos[1]
+
+                        if abs(dr) == 1 and abs(dc) == 1 and must_take == False:
+                            selected_piece.move_single(selected_pos, new_pos)
+
+                            # # or check which way piece is going here
+                            # if dc == 1:
+                            #     if selected_piece.colour == "white":
+                            #         selected_piece.move_single(selected_pos, new_pos)
+                            #     else:
+                            #         selected_piece.move_back_single(selected_pos, new_pos)
+                                
+                            # else: # dc == -1
+                            #     if selected_piece.colour == "black":
+                            #         selected_piece.move_single(selected_pos, new_pos)
+                            #     else:
+                            #         selected_piece.move_back_single(selected_pos, new_pos)
+
+                        # if double move
+                        elif abs(dr) == 2 and abs(dc) == 2: # if must_take == False, there will be an error when we check valid move
+
+                            selected_piece.move_double(selected_pos, new_pos)
+                            
+                            if selected_piece.can_take():
+                                allowed_pieces = [selected_piece]
+
+                        # if selected_piece.colour == "white":
+                            # TODO begin black's move
+
+                    else:
+                        logger.error(f"piece in {selected_pos} can't be moved ")
 
                     # Reset selection
                     selected_piece = None
                     selected_pos = None
+                    must_take = False
+                    
 
         draw_board(win)
         draw_pieces(win)
