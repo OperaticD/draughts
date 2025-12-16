@@ -38,7 +38,6 @@ class Piece:
 
         return True
     
-    # TODO add score depending on king -> bool, int
     def can_move_double(self, new_position: tuple[int, int], captured_position: tuple[int, int]) -> tuple[bool, int]:
         if not self.is_square_free(new_position):
             return False, 0
@@ -48,8 +47,10 @@ class Piece:
             if captured_piece.colour != self.colour:
                 score = 2 if captured_piece.king_status else 1
                 return True, score
+            elif captured_piece.colour == self.colour:
+                logger.error("Cannot take your own piece.")
+                return False, 0
         else:
-            logger.error("Cannot take your own piece.")
             return False, 0
 
 
@@ -73,8 +74,9 @@ class BlackPiece(Piece):
 
         return 200
     
-    def move_double(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
+    def move_double(self, new_position: tuple[int, int]) -> int:
         # TODO: figure out position from self
+        position = next((k for k, v in BOARD.items() if v == self), None)
         dr = new_position[0] - position[0]
         captured_pos = captured_position(position, new_position)
         can_move = self.can_move_double(new_position, captured_pos) and (dr == 2 or self.king_status)
@@ -144,7 +146,8 @@ class WhitePiece(Piece):
 
         return 200
 
-    def move_double(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
+    def move_double(self, new_position: tuple[int, int], select_position: tuple[int,int] = None) -> int:
+        position = select_position or next((k for k, v in BOARD.items() if v == self), None)
         dr = new_position[0] - position[0]
         captured_pos = captured_position(position, new_position)
         can_move = self.can_move_double(new_position, captured_pos)[0] and (dr == -2 or self.king_status)

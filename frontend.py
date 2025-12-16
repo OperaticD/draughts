@@ -47,28 +47,31 @@ def draw_pieces(win):
             pygame.draw.circle(win, (200, 200, 0), (x, y), radius - 5, 3)
 
 
-def click_move(must_take: bool, allowed_pieces: list[object]) -> tuple[int, object]: # TODO check object
+def click_move(selected_piece: object, selected_pos: tuple[int, int], must_take: bool, allowed_pieces: list[object]) -> tuple[int, object]: # TODO check object type
     x, y = pygame.mouse.get_pos()
 
     row = y // SQUARE_SIZE
     col = x // SQUARE_SIZE
+    new_pos = (row, col)
 
-
-    # 1) First click selects a piece
+    # 1) First click → select piece
     if selected_piece is None:
-        if BOARD.get((row, col)) is not None:
-            selected_piece = BOARD[(row, col)]
-            selected_pos = (row, col)
+        piece = BOARD.get(new_pos)
+        if piece and piece.colour == "white":
+            return None, piece, new_pos
 
-    # 2) Second click attempts to move it
+    # # 1) First click selects a piece
+    # if selected_piece is None:
+    #     if BOARD.get((row, col)):
+    #         selected_piece = BOARD[(row, col)]
+    #         selected_pos = (row, col)
+
+    # 2) Second click → attempt move
     else:
-        # Check if any pieces can be taken
-
+        # Must capture rule
         if must_take and selected_piece not in allowed_pieces:
             logger.error("Must capture a piece.")
-            # Reset and continue
-            selected_piece = None
-            selected_pos = None
+            return None, None, None
         
         if selected_piece in allowed_pieces:
             new_pos = (row, col)
@@ -79,29 +82,36 @@ def click_move(must_take: bool, allowed_pieces: list[object]) -> tuple[int, obje
 
             if abs(dr) == 1 and abs(dc) == 1 and must_take == False:
                 success = selected_piece.move_single(selected_pos, new_pos)
+                # TODO remove current_turn ?
                 if success == 200:
-                    if current_turn == "white":
-                        current_turn = "black"
-                    else:
-                        current_turn = "white"
-                    return 200, None
+                    # if current_turn == "white":
+                    #     current_turn = "black"
+                    # else:
+                    #     current_turn = "white"
+                    return success, None, None
 
             # if double move
             elif abs(dr) == 2 and abs(dc) == 2: # if must_take == False, there will be an error when we check valid move
 
-                success = selected_piece.move_double(selected_pos, new_pos)
+                success = selected_piece.move_double(new_position=new_pos, select_position=selected_pos) 
                 if success == 200:
                 # TODO fix double jump
                     if selected_piece.can_take():
                     # The piece has just moved, so its new selected_pos is the old new_pos
                         selected_pos = new_pos
-                        return 200, selected_piece
+                        allowed_pieces = [selected_piece]
+                        return 200, selected_piece, selected_pos
+                    else:
+                        must_take = False
+                        return 200, None, None
 
-                if current_turn == "white":
-                    current_turn = "black"
-                else:
-                    current_turn = "white"
-                return 200, None
+                # if current_turn == "white":
+                #     current_turn = "black"
+                # else:
+                #     current_turn = "white"
+                return 200, None, None
+            
+    return 400, selected_piece, selected_pos
             
 
 
@@ -115,7 +125,7 @@ def ai_move():
         position = next((k for k, v in BOARD.items() if v == piece), None)
         if position:
             double = piece.check_double(position)
-            valid_moves += double
+            valid_moves.append(double)
             if double:
                 must_take = True
 
@@ -128,9 +138,9 @@ def ai_move():
 
                 for dr, dc in directions:
                     new_pos = (r + dr, c + dc)
-                    valid = piece.can_move(new_pos)
+                    valid = piece.is_square_free(new_pos)
                     if valid:
-                        valid_moves += (piece, new_pos, 0)
+                        valid_moves.append((piece, new_pos, 0))
 
     if must_take:
         max_score = 0
@@ -151,11 +161,10 @@ def ai_move():
     if chosen[2] > 0:
         # unpack move
         for move in chosen_move:
-            chosen_piece.move_double(move)
+            chosen_piece.move_double(move[1])
     else:
         chosen_piece.move(chosen_move)
     
-    # randomly pick from valid_moves
 
 
     # thought - use function to extend valid_moves
@@ -180,8 +189,8 @@ def game():
 
     selected_piece = None
     selected_pos = None
-    allowed_pieces = []
-    current_turn = "white"
+    allowed_pieces = None
+    # current_turn = "white"
 
     running = True
     while running:
@@ -189,13 +198,11 @@ def game():
         if allowed_pieces:
             must_take = True
         else:
-            my_pieces = [p for p in all_pieces if (p.colour == current_turn and p.active)]
+            my_pieces = [p for p in all_pieces if (p.colour == "white" and p.active)]
             allowed_pieces = [p for p in my_pieces if p.can_take()]
-            if allowed_pieces:
-                must_take = True
-            else:
+            must_take = bool(allowed_pieces)
+            if not must_take:
                 allowed_pieces = my_pieces
-                must_take = False
 
         for event in pygame.event.get():
 
@@ -204,22 +211,20 @@ def game():
 
             # Handle mouse clicks
             if event.type == pygame.MOUSEBUTTONDOWN:
-                next_turn, must_move_piece = click_move(must_take, allowed_pieces)
+                success, selected_piece, selected_pos = click_move(selected_piece, selected_pos, must_take, allowed_pieces)
 
-                if not must_move_piece and next_turn == 200:
+                if not selected_piece and success == 200:
+                    selected_piece = None
+                    selected_pos = None
                     ai_move()
-                    # else:
-                    #     logger.error(f"piece in {selected_pos} can't be moved ")
-
-                    # Reset selection
                 
-                if must_move_piece:
-                    allowed_pieces = [must_move_piece]
-                else:
-                    allowed_pieces = []
+                # if selected_piece:
+                #     allowed_pieces = [selected_piece]
+                # else:
+                #     allowed_pieces = []
 
-                selected_piece = None
-                selected_pos = None
+                # selected_piece = None
+                # selected_pos = None
                 # must_take = False
                     
 
