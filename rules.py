@@ -56,14 +56,14 @@ class Piece:
 
 class BlackPiece(Piece):
     colour = "black"
-    # TODO: Check how double moves continue if can_move_double again.
 
     def move(self, position: tuple[int, int], new_position: tuple[int,int]) -> tuple[str, int]:
         BOARD[position] = None
         BOARD[new_position] = self
-        logger.info(f"Black moved {'king' if self.king_status else 'piece'} at {position} to {new_position}.")
+        logger.error(f"Black moved {'king' if self.king_status else 'piece'} at {position} to {new_position}.")
         if new_position[0] == 7:
             self.king_status = True
+        return 200
 
     def move_single(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
         dr = new_position[0] - position[0]
@@ -71,23 +71,23 @@ class BlackPiece(Piece):
         can_move = self.is_square_free(new_position) and (dr == 1 or self.king_status)
         if can_move:
             self.move(position, new_position)
-
-        return 200
+            return 200
+        
+        return 400
     
-    def move_double(self, new_position: tuple[int, int]) -> int:
-        # TODO: figure out position from self
-        position = next((k for k, v in BOARD.items() if v == self), None)
+    def move_double(self, position: tuple[int, int], new_position: tuple[int, int]) -> int:
         dr = new_position[0] - position[0]
         captured_pos = captured_position(position, new_position)
-        can_move = self.can_move_double(new_position, captured_pos) and (dr == 2 or self.king_status)
+        can_move = self.can_move_double(new_position, captured_pos) and (dr == 2 or (dr == -2 and self.king_status))
 
         if can_move:
             captured_piece = BOARD[captured_pos]
             captured_piece.active = False
             BOARD[captured_pos] = None
             self.move(position, new_position)
-
-        return 200
+            return 200
+        
+        return 400
 
     def can_take(self):
         # find current position
@@ -108,7 +108,9 @@ class BlackPiece(Piece):
 
         return False
     
-    def check_double(self, position: tuple, moves: list = []) -> list:
+    def check_double(self, position: tuple, moves: list | None = None) -> list:
+        if moves is None:
+            moves = []
         r, c = position
         # direction pairs for standard movement
         directions = [(2, -2), (2, 2)]
@@ -120,7 +122,7 @@ class BlackPiece(Piece):
             captured = captured_position(position, new_pos)
             valid, score = self.can_move_double(new_pos, captured)
             if valid:
-                moves.append((self, new_pos, score))
+                moves.append((self, position, new_pos, score))
                 # return to start with new position to see if piece can make another double move
                 self.check_double(new_pos, moves)
         
@@ -133,9 +135,10 @@ class WhitePiece(Piece):
     def move(self, position: tuple[int, int], new_position: tuple[int,int]) -> tuple[str, int]:
         BOARD[position] = None
         BOARD[new_position] = self
-        logger.info(f"White moved {'king' if self.king_status else 'piece'} at {position} to {new_position}.")
+        logger.error(f"White moved {'king' if self.king_status else 'piece'} at {position} to {new_position}.")
         if new_position[0] == 0:
             self.king_status = True
+        return 200
 
     def move_single(self, position: tuple[int, int], new_position: tuple[int,int]) -> int:
         dr = new_position[0] - position[0]
@@ -143,10 +146,11 @@ class WhitePiece(Piece):
         can_move = self.is_square_free(new_position) and (dr == -1 or self.king_status)
         if can_move:
             self.move(position, new_position)
+            return 200
+        
+        return 400
 
-        return 200
-
-    def move_double(self, new_position: tuple[int, int], select_position: tuple[int,int] = None) -> int:
+    def move_double(self, select_position: tuple[int,int], new_position: tuple[int, int]) -> int:
         position = select_position or next((k for k, v in BOARD.items() if v == self), None)
         dr = new_position[0] - position[0]
         captured_pos = captured_position(position, new_position)
@@ -157,8 +161,9 @@ class WhitePiece(Piece):
             captured_piece.active = False
             BOARD[captured_pos] = None
             self.move(position, new_position)
-
-        return 200
+            return 200
+        
+        return 400
     
     def can_take(self):
         # find current position
