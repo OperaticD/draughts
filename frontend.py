@@ -1,6 +1,7 @@
 import pygame
-from rules import BOARD, all_pieces
+from rules import BOARD, all_pieces, black_pieces, captured_position
 import logging
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,105 @@ def draw_pieces(win):
             pygame.draw.circle(win, (200, 200, 0), (x, y), radius - 5, 3)
 
 
+def click_move(selected_piece: object, selected_pos: tuple[int, int], new_pos: tuple[int, int], must_take: bool, allowed_pieces: list[object]) -> tuple[int, object]:
+    # Must capture rule
+    if must_take and selected_piece not in allowed_pieces:
+        logger.error("Must capture a piece.")
+        return None, None, None
+    
+    if selected_piece in allowed_pieces:
+        # new_pos = (row, col)
+
+        # calculate movement
+        dr = new_pos[0] - selected_pos[0]
+        dc = new_pos[1] - selected_pos[1]
+
+        if abs(dr) == 1 and abs(dc) == 1 and must_take == False:
+            success = selected_piece.move_single(selected_pos, new_pos)
+            if success == 200:
+                return success, None, None
+
+        # if double move
+        elif abs(dr) == 2 and abs(dc) == 2: # if must_take == False, there will be an error when we check valid move
+
+            success = selected_piece.move_double(selected_pos, new_pos)
+            if success == 200:
+                if selected_piece.can_take():
+                # The piece has just moved, so its new selected_pos is the old new_pos
+                    selected_pos = new_pos
+                    allowed_pieces = [selected_piece]
+                    return 200, selected_piece, selected_pos
+                else:
+                    must_take = False
+                    return 200, None, None
+
+            return 200, None, None
+            
+    return 400, selected_piece, selected_pos
+            
+
+def ai_move():
+    # check score of each can_move_double and track piece, new square, score
+    active_black_pieces = [p for p in black_pieces if p.active]
+    valid_moves = []
+    must_take = False
+    for piece in active_black_pieces:
+        position = next((k for k, v in BOARD.items() if v == piece), None)
+        if position is not None:
+            double = piece.check_double(position) # returns [(piece, pos, new_pos, score)] or list if many double
+            if double:
+                must_take = True
+                valid_moves.append(double)
+
+            if not must_take:
+                r, c = position
+                # direction pairs for standard movement
+                directions = [(1, -1), (1, 1)]
+                if piece.king_status:
+                    directions += [(-1, -1), (-1, 1)]
+
+                for dr, dc in directions:
+                    new_pos = (r + dr, c + dc)
+                    valid = piece.is_square_free(new_pos)
+                    if valid:
+                        valid_moves.append((piece, position, new_pos, 0))
+
+    if must_take:
+        max_score = 0
+        best_move = []
+        for move in valid_moves:
+            # begin score comparison
+            score = 0
+            if isinstance(move, list):
+                for m in move:
+                    score += m[-1]
+            else:
+                score = move[-1]
+
+            if score > max_score:
+                best_move = [move]
+            elif score == max_score:
+                best_move += move
+    else:
+        best_move = valid_moves
+    
+    chosen = random.choice(best_move)
+
+    # all doubles give lists
+    if isinstance(chosen, list):
+        chosen_piece = chosen[0][0]
+        for m in chosen:
+            chosen_piece.move_double(position=m[1], new_position=m[2])
+            # TODO: update board for each move
+    else:
+        chosen_piece = chosen[0]
+        chosen_piece_pos = chosen[1]
+        chosen_move = chosen[2]
+        chosen_piece.move_single(chosen_piece_pos, chosen_move)
+
+    return
+
+
 def game():
     pygame.init()
     win = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -53,78 +153,52 @@ def game():
 
     selected_piece = None
     selected_pos = None
+    allowed_pieces = None
 
     running = True
     while running:
+
         for event in pygame.event.get():
+
             if event.type == pygame.QUIT:
                 running = False
 
             # Handle mouse clicks
             if event.type == pygame.MOUSEBUTTONDOWN:
+
                 x, y = pygame.mouse.get_pos()
 
                 row = y // SQUARE_SIZE
                 col = x // SQUARE_SIZE
-
-                # 1) First click selects a piece
+                new_pos = (row, col)
+                # select piece
                 if selected_piece is None:
-                    if BOARD.get((row, col)) is not None:
-                        selected_piece = BOARD[(row, col)]
+
+                    my_pieces = [p for p in all_pieces if (p.colour == "white" and p.active)]
+                    allowed_pieces = [p for p in my_pieces if p.can_take()]
+                    must_take = bool(allowed_pieces)
+                    print("Must take: ", must_take)
+                    if not must_take:
+                        allowed_pieces = my_pieces
+
+                    piece = BOARD.get((row, col))
+                    if piece and piece.colour == "white":
+                        selected_piece = piece
                         selected_pos = (row, col)
 
-                # 2) Second click attempts to move it
-                else:
-                    # Check if any pieces can be taken
-                    my_pieces = [p for p in all_pieces if p.colour == selected_piece.colour]
-                    allowed_pieces = [p for p in my_pieces if p.can_take()]
-                    if allowed_pieces:
-                        must_take = True
-                    else:
-                        allowed_pieces = my_pieces
-                        must_take = False
-                    
-                    if selected_piece in allowed_pieces:
-                        new_pos = (row, col)
+                elif new_pos != selected_pos:
+                    print("Must take: ", must_take)
+                    success, selected_piece, selected_pos = click_move(selected_piece, selected_pos, new_pos, must_take, allowed_pieces)
 
-                        # calculate movement
-                        dr = new_pos[0] - selected_pos[0]
-                        dc = new_pos[1] - selected_pos[1]
-
-                        if abs(dr) == 1 and abs(dc) == 1 and must_take == False:
-                            selected_piece.move_single(selected_pos, new_pos)
-
-                            # # or check which way piece is going here
-                            # if dc == 1:
-                            #     if selected_piece.colour == "white":
-                            #         selected_piece.move_single(selected_pos, new_pos)
-                            #     else:
-                            #         selected_piece.move_back_single(selected_pos, new_pos)
-                                
-                            # else: # dc == -1
-                            #     if selected_piece.colour == "black":
-                            #         selected_piece.move_single(selected_pos, new_pos)
-                            #     else:
-                            #         selected_piece.move_back_single(selected_pos, new_pos)
-
-                        # if double move
-                        elif abs(dr) == 2 and abs(dc) == 2: # if must_take == False, there will be an error when we check valid move
-
-                            selected_piece.move_double(selected_pos, new_pos)
-                            
-                            if selected_piece.can_take():
-                                allowed_pieces = [selected_piece]
-
-                        # if selected_piece.colour == "white":
-                            # TODO begin black's move
-
-                    else:
-                        logger.error(f"piece in {selected_pos} can't be moved ")
-
-                    # Reset selection
-                    selected_piece = None
-                    selected_pos = None
-                    must_take = False
+                    if selected_piece is None and success == 200:
+                        selected_piece = None
+                        selected_pos = None
+                        draw_board(win)
+                        draw_pieces(win)
+                        pygame.display.update()
+                        # TODO: check win
+                        ai_move()
+                        # TODO: check win
                     
 
         draw_board(win)
