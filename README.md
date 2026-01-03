@@ -3,9 +3,9 @@
 Using Python 3.12 and pygame 2.6.1. 
 Run main.py to start app.
 
-Work In Progress!
-- Currently pieces can make diagonal single and double moves, take pieces and become king.
-- Next: Fix logs. Implement "turns" logic and iterate through validity checks so that computer can make a move. Later add logic for computer's move.
+Progress:
+- Currently can play against the computer.
+- Next: Fix logs. Add logic to computer's move so it can forsee user's next moves.
 
 <br><br>
 
